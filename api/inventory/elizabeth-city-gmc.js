@@ -4,8 +4,15 @@ let cache = null;
 let lastFetch = 0;
 
 module.exports = async (req, res) => {
+  // ✅ Add full CORS support
   res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // ✅ Handle browser preflight request
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
 
   const now = Date.now();
   const fiveMinutes = 5 * 60 * 1000;
@@ -20,7 +27,6 @@ module.exports = async (req, res) => {
       "https://www.elizabethcitygmc.com/apis/widget/INVENTORY_LISTING_DEFAULT_AUTO_USED:inventory-data-bus1/getInventory?start=0&limit=100"
     ];
 
-    // Add browser-like headers
     const headers = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
       "Accept": "application/json",
