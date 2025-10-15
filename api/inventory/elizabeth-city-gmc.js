@@ -5,21 +5,19 @@ let cache = null;
 let lastFetch = 0;
 
 module.exports = async (req, res) => {
-  // ✅ Allow Canva & browsers to access
+  // ✅ Enable CORS for Canva
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  // ✅ Handle preflight requests
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
   const now = Date.now();
-  const fiveMinutes = 5 * 60 * 1000;
+  const cacheDuration = 5 * 60 * 1000; // 5 minutes
 
-  // ✅ Serve cached data if available
-  if (cache && now - lastFetch < fiveMinutes) {
+  if (cache && now - lastFetch < cacheDuration) {
     return res.status(200).json(cache);
   }
 
@@ -35,30 +33,30 @@ module.exports = async (req, res) => {
       "Referer": "https://www.elizabethcitygmc.com/",
     };
 
+    // ✅ Fetch both new + used feeds
     const responses = await Promise.all(
       urls.map(u =>
         fetch(u, { headers })
           .then(r => r.json())
-          .catch(() => null)
+          .catch(err => {
+            console.error("Fetch failed for", u, err);
+            return null;
+          })
       )
     );
 
-    const allVehicles = [];
+    let allVehicles = [];
 
-    // ✅ Pull vehicles from the correct structure
+    // ✅ Extract from pageInfo.trackingData (confirmed structure)
     for (const r of responses) {
       if (!r) continue;
 
-      if (r.pageInfo?.trackingData) {
+      if (r.pageInfo && Array.isArray(r.pageInfo.trackingData)) {
         allVehicles.push(...r.pageInfo.trackingData);
-      } else if (r.trackingData) {
-        allVehicles.push(...r.trackingData);
-      } else if (r.searchResults?.results) {
-        allVehicles.push(...r.searchResults.results);
       }
     }
 
-    // ✅ Simplify output for Canva
+    // ✅ Transform data into clean structure
     const vehicles = allVehicles.map(v => ({
       year: v.modelYear || "",
       make: "GMC",
@@ -74,6 +72,7 @@ module.exports = async (req, res) => {
     }));
 
     const payload = { vehicles };
+
     cache = payload;
     lastFetch = now;
 
