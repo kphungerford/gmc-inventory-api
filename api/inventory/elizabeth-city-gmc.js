@@ -20,7 +20,17 @@ module.exports = async (req, res) => {
       "https://www.elizabethcitygmc.com/apis/widget/INVENTORY_LISTING_DEFAULT_AUTO_USED:inventory-data-bus1/getInventory?start=0&limit=100"
     ];
 
-    const responses = await Promise.all(urls.map(u => fetch(u).then(r => r.json()).catch(()=>null)));
+    // Add browser-like headers
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      "Accept": "application/json",
+      "Referer": "https://www.elizabethcitygmc.com/",
+    };
+
+    const responses = await Promise.all(
+      urls.map(u => fetch(u, { headers }).then(r => r.json()).catch(() => null))
+    );
+
     const allVehicles = [];
 
     for (const r of responses) {
@@ -33,6 +43,7 @@ module.exports = async (req, res) => {
     const payload = { vehicles: allVehicles };
     cache = payload;
     lastFetch = now;
+
     res.status(200).json(payload);
   } catch (err) {
     console.error(err);
