@@ -40,11 +40,18 @@ module.exports = async (req, res) => {
     const allVehicles = [];
 
     for (const r of responses) {
-      if (!r) continue;
-      if (r.searchResults?.results) allVehicles.push(...r.searchResults.results);
-      else if (r.results) allVehicles.push(...r.results);
-      else if (r.vehicles) allVehicles.push(...r.vehicles);
-    }
+  if (!r) continue;
+
+  if (r.trackingData) {
+    allVehicles.push(...r.trackingData);
+  } else if (r.searchResults?.results) {
+    allVehicles.push(...r.searchResults.results);
+  } else if (r.results) {
+    allVehicles.push(...r.results);
+  } else if (r.vehicles) {
+    allVehicles.push(...r.vehicles);
+  }
+}
 
     const payload = { vehicles: allVehicles };
     cache = payload;
