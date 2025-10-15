@@ -53,7 +53,17 @@ module.exports = async (req, res) => {
   }
 }
 
-    const payload = { vehicles: allVehicles };
+    const vehicles = allVehicles.map(v => ({
+  year: v.modelYear || "",
+  make: "GMC",
+  model: v.model || "",
+  price: v.price || v.priceSelling || 0,
+  trim: v.trim || v.series || "",
+  image: v.images?.[0]?.uri || ""
+}));
+
+const payload = { vehicles };
+
     cache = payload;
     lastFetch = now;
 
