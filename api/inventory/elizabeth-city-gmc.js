@@ -5,19 +5,15 @@ let cache = null;
 let lastFetch = 0;
 
 module.exports = async (req, res) => {
-  // ✅ Allow Canva & browsers to access the data
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
 
   const now = Date.now();
-  const cacheDuration = 5 * 60 * 1000; // 5 minutes
+  const cacheDuration = 5 * 60 * 1000; // 5 min cache
 
-  // ✅ Serve cached data if it's still fresh
   if (cache && now - lastFetch < cacheDuration) {
     return res.status(200).json(cache);
   }
@@ -30,40 +26,45 @@ module.exports = async (req, res) => {
 
     const headers = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      "Accept": "application/json",
-      "Referer": "https://www.elizabethcitygmc.com/",
+      Accept: "application/json",
+      Referer: "https://www.elizabethcitygmc.com/",
     };
 
     const responses = await Promise.all(
-      urls.map((u) =>
-        fetch(u, { headers })
-          .then(async (r) => {
-            const text = await r.text();
+      urls.map(async (u) => {
+        try {
+          const r = await fetch(u, { headers });
+          const text = await r.text();
 
-            // 🧩 Dealer.com sometimes wraps JSON inside HTML — find the JSON block
-            const start = text.indexOf("{");
-            const end = text.lastIndexOf("}");
-            const jsonText = text.slice(start, end + 1);
-
-            try {
-              const parsed = JSON.parse(jsonText);
-              return parsed;
-            } catch (err) {
-              console.error("❌ Failed to parse dealer data:", err);
-              console.error("Preview of bad text:", text.slice(0, 200));
-              return null;
-            }
-          })
-          .catch((err) => {
-            console.error("Fetch error for", u, err);
+          // 🔍 Look for the first and last curly braces to isolate JSON
+          const start = text.indexOf("{");
+          const end = text.lastIndexOf("}");
+          if (start === -1 || end === -1) {
+            console.warn("No JSON structure found in dealer response.");
             return null;
-          })
-      )
+          }
+
+          const jsonText = text.slice(start, end + 1);
+
+          // 🧠 Remove any HTML tags that might break parsing
+          const cleaned = jsonText.replace(/<[^>]*>/g, "");
+
+          try {
+            return JSON.parse(cleaned);
+          } catch (err) {
+            console.error("JSON parse failed:", err);
+            console.error("Snippet:", cleaned.slice(0, 300));
+            return null;
+          }
+        } catch (err) {
+          console.error("Fetch error for", u, err);
+          return null;
+        }
+      })
     );
 
     const allVehicles = [];
 
-    // ✅ Extract vehicle data from confirmed structure
     for (const r of responses) {
       if (!r) continue;
       if (r.pageInfo?.trackingData && Array.isArray(r.pageInfo.trackingData)) {
@@ -71,7 +72,6 @@ module.exports = async (req, res) => {
       }
     }
 
-    // ✅ Map to clean JSON output for Canva
     const vehicles = allVehicles.map((v) => ({
       year: v.modelYear || "",
       make: "GMC",
@@ -88,7 +88,12 @@ module.exports = async (req, res) => {
       highwayMPG: v.highwayFuelEfficiency || "",
     }));
 
-    const payload = { vehicles, lastUpdated: new Date().toISOString() };
+    const payload = {
+      vehicles,
+      lastUpdated: new Date().toISOString(),
+      count: vehicles.length,
+    };
+
     cache = payload;
     lastFetch = now;
 
