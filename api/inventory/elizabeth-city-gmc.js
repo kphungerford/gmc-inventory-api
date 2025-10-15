@@ -15,10 +15,10 @@ module.exports = async (req, res) => {
   }
 
   const now = Date.now();
-  const fiveMinutes = 5 * 60 * 1000;
+  const cacheDuration = 5 * 60 * 1000; // 5 minutes
 
-  // ✅ Use cache if still fresh
-  if (cache && now - lastFetch < fiveMinutes) {
+  // ✅ Serve cached data if it's still fresh
+  if (cache && now - lastFetch < cacheDuration) {
     return res.status(200).json(cache);
   }
 
@@ -30,8 +30,8 @@ module.exports = async (req, res) => {
 
     const headers = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      Accept: "application/json",
-      Referer: "https://www.elizabethcitygmc.com/",
+      "Accept": "application/json",
+      "Referer": "https://www.elizabethcitygmc.com/",
     };
 
     const responses = await Promise.all(
@@ -40,14 +40,17 @@ module.exports = async (req, res) => {
           .then(async (r) => {
             const text = await r.text();
 
-            // ✅ Some dealer sites wrap JSON inside HTML — extract it
+            // 🧩 Dealer.com sometimes wraps JSON inside HTML — find the JSON block
             const start = text.indexOf("{");
-            const jsonText = text.slice(start);
+            const end = text.lastIndexOf("}");
+            const jsonText = text.slice(start, end + 1);
 
             try {
-              return JSON.parse(jsonText);
+              const parsed = JSON.parse(jsonText);
+              return parsed;
             } catch (err) {
-              console.error("Failed to parse JSON from dealer feed:", err);
+              console.error("❌ Failed to parse dealer data:", err);
+              console.error("Preview of bad text:", text.slice(0, 200));
               return null;
             }
           })
@@ -60,7 +63,7 @@ module.exports = async (req, res) => {
 
     const allVehicles = [];
 
-    // ✅ Extract vehicles from confirmed path
+    // ✅ Extract vehicle data from confirmed structure
     for (const r of responses) {
       if (!r) continue;
       if (r.pageInfo?.trackingData && Array.isArray(r.pageInfo.trackingData)) {
@@ -68,7 +71,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    // ✅ Format vehicle objects for Canva
+    // ✅ Map to clean JSON output for Canva
     const vehicles = allVehicles.map((v) => ({
       year: v.modelYear || "",
       make: "GMC",
